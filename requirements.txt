@@ -1,0 +1,8 @@
+pandas >= 1.2.0
+numpy >= 1.20.0
+scipy >= 1.6.0
+requests
+lxml
+python-dotenv
+splinter
+bs4
