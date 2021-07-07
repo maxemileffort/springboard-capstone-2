@@ -123,4 +123,4 @@ def scraper():
 if __name__ == '__main__':
     setup_folders()
     scraper()
-    get_player_data(player_name="Ryan, Matt", week=5, year=2018)
+    # get_player_data(player_name="Ryan, Matt", week=5, year=2018)
