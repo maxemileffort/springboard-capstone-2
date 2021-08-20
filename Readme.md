@@ -53,7 +53,11 @@ I tested several different regression models from [SciKit Learn](https://scikit-
 >***NOTE:** I chose RMSE to control for dealing with outliers in the data. It's hard to consistently find players that score more than 30, 40 points, and some weeks they don't even occur. So RMSE would, because we are taking the root of those errors, control for those random high performers a little better.*
 
 ## 6. Pseudo-Coldstart Threshold
-**Coldstart Threshold**: Recommender systems have a unique issue: *what does the algorithm recommend to new users when it has very little or no prior data?* I decided there were 2 options:
+**Coldstart Threshold**: Recommender systems have a unique issue: *what does the algorithm recommend to new users when it has very little or no prior data?* 
+
+Due to trades, player releases, the Draft, and some other stuff, there can be a lot of changes from season to season. So while we aren't using a recommender system, there's still the issue of picking players at the beginning of the season with the data that we *do* have.
+
+I decided there were 2 options:
 
 - Use last year's season data as a whole to make a decision for week 1 of this season.
 - Wait for week 1's data in order to begin during week 2.
