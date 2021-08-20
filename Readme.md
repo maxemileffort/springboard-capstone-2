@@ -68,8 +68,6 @@ Because of how draft's work and the copious amounts of trades during the off-sea
 
 In the final predictions notebook, the user can upload a DraftKings template and get player picks for the coming week of DFS.
 
-![]()
-
 ## 8. Future Improvements
 
 * Incorporating more stats (def ratings vs. positions, QB ratings, targets, yardage, etc.) into the model I think would make it more robust.
@@ -79,3 +77,5 @@ In the final predictions notebook, the user can upload a DraftKings template and
 ## 9. Credits
 
 Thanks to [Draftkings](https://www.draftkings.com), [RotoGuru](http://rotoguru.net/), and [Pro Football Reference](https://www.pro-football-reference.com) for making their data publicly accessible, and Mukesh Mithrakumar for being an extrememly knowledgeable and patient Springboard mentor.
+
+Cover photo by [Keith Johnston](https://unsplash.com/@acfb5071?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText) on [Unsplash](https://unsplash.com/s/photos/american-football?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText).
