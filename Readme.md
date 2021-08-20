@@ -1,4 +1,4 @@
-![cover_photo]()
+![cover_photo](./readme_files/cover_photo.jpg)
 # Daily Fantasy Football Player Picking System
 
 *Sports betting is a [203 billion dollar industry in 2020](https://www.statista.com/statistics/1154681/key-data-global-sports-betting-industry/), and getting bigger every year. One subset of sports betting, Daily Fantasy Sports (DFS), is [immensely popular](https://www.businesswire.com/news/home/20210111005708/en/2020-Fantasy-Sports-Industry-Report---ResearchAndMarkets.com#:~:text=According%20to%20the%20Fantasy%20Sports,reach%20150%20million%20by%202022.). Due to the popularity though, it is difficult to pick players that perform well week-to-week, but also don't match what everyone else is picking. For this project, I set out to create a system that better predicts high scoring players for DraftKings Classic games.*
@@ -66,7 +66,7 @@ Because of how draft's work and the copious amounts of trades during the off-sea
 
 ## 7. Predictions
 
-In the final predictions notebook, the user can upload a DraftKings template and get player picks.
+In the final predictions notebook, the user can upload a DraftKings template and get player picks for the coming week of DFS.
 
 ![]()
 
