@@ -17,11 +17,11 @@ These data were collected and joined together for purposes of training the model
 
 ## 2. Method
 
-Because the goal was to predict DFS point output of players, I had to choose between regression and classifcation. Initially, I had decided to make this a classification problem, where I would train models to predict 'tiers' of players, but in the end, this model had pretty low performance. After changing to regression modeling, performance went up.
+The goal was to predict DFS point output of players, and I had to choose between regression and classifcation. Initially, I had decided to make this a classification problem, where I would train models to predict "tiers" of players, but in the end, this model had pretty low performance. After changing to regression modeling, performance went up.
 
 **WINNER: Regression Modeling** 
 
-The classification model created "pools" of players, but sometimes the pools were way, way off. As a result, lineups built with those players were mostly low-performing. Regression on the other hand, did really well in 2 aspects: 
+The classification model created "tiers" of players, but sometimes the pools were way, way off. As a result, lineups built with those players were mostly low-performing. Regression on the other hand, did really well in 2 aspects: 
 
 1. Filtering bad players
 2. Picking good players from those results
