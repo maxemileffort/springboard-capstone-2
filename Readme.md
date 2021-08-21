@@ -66,7 +66,9 @@ Because of how draft's work and the copious amounts of trades during the off-sea
 
 ## 7. Predictions
 
-In the final predictions notebook, the user can upload a DraftKings template and get player picks for the coming week of DFS.
+In the final version of the predictions notebook, the user will be able to upload a DraftKings template and get player picks for the coming week of DFS.
+
+Currently is just let's people explore previous data in order to see how the predictions stack up against actual scores.
 
 ## 8. Future Improvements
 
