@@ -2,6 +2,7 @@
 from bs4 import BeautifulSoup
 from io import StringIO
 import pandas as pd
+from splinter import browser
 import lxml.html as lh
 from lxml.html.clean import Cleaner
 from pathlib import Path
@@ -30,15 +31,22 @@ def build_urls():
     urls = []
     for i in years:
         for j in weeks:
-            # if the file already exists of the data, don't scrape for it
-            location_string = f"./csv's/{i}/year-{i}-week-{j}-DK-player_data.csv"
-            _file = Path(f'{location_string}')
-            if _file.exists():
+            try:
+                # if the file already exists of the data, don't scrape for it
+                location_string = f"./csv's/{i}/year-{i}-week-{j}-DK-player_data.csv"
+                _file = Path(f'{location_string}')
+                if _file.exists():
+                    pass
+                # otherwise, make the url and scrape for it
+                else:
+                    query_string = f"week={j}&year={i}&game=dk&scsv=1"
+                    urls.append(base_url + query_string)
+            except IndexError:
+                # if this runs mid-season, we don't want to keep
+                # scanning for other weeks
+                break
+            except:
                 pass
-            # otherwise, make the url and scrape for it
-            else:
-                query_string = f"week={j}&year={i}&game=dk&scsv=1"
-                urls.append(base_url + query_string)
     return urls
 
 def get_player_data(player_name, week=0, year=get_current_year()):
@@ -66,18 +74,28 @@ def get_player_data(player_name, week=0, year=get_current_year()):
     print(df)
     return df
 
-def get_fantasy_data(url):
+def get_browser(tries=0):
     from splinter import Browser
     from selenium import webdriver
-    from settings import CHROMEDRIVER_DIR1, CHROMEDRIVER_DIR2
-    # define the location of the Chrome Driver - CHANGE THIS!!!!!
-    executable_path = {'executable_path': CHROMEDRIVER_DIR2}
-
+    from settings import CHROMEDRIVER_DIR1, CHROMEDRIVER_DIR2, CHROMEDRIVER_DIR3
     # Create a new instance of the browser, make sure we can see it (Headless = False)
     options = webdriver.ChromeOptions()
     options.add_argument("start-maximized")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option('useAutomationExtension', False)
+    executable_path = {}
+    if tries == 0:
+        executable_path = {'executable_path': CHROMEDRIVER_DIR1}
+    elif tries == 1:
+        executable_path = {'executable_path': CHROMEDRIVER_DIR2}
+    else:
+        executable_path = {'executable_path': CHROMEDRIVER_DIR3}
+    
+    browser = Browser('chrome', **executable_path, headless=False, incognito=True, options=options)
+
+    return browser
+
+def get_fantasy_data(url):
 
     # define the components to build a URL
     method = 'GET'
@@ -86,16 +104,20 @@ def get_fantasy_data(url):
     p = requests.Request(method, url).prepare()
     myurl = p.url
 
+    # build correct browser
+    tries = 0
+    browser= ""
+    
+    while True:
+        try:
+            browser = get_browser(tries)
+            break
+        except:
+            # if chrome auto updates and opening a browser fails, 
+            # try a different webdriver version
+            tries += 1           
     # go to the URL
-    try:
-        browser = Browser('chrome', **executable_path, headless=False, incognito=True, options=options)
-        browser.visit(myurl)
-    except:
-        # if chrome auto updates and opening a browser fails, 
-        # try a different webdriver version
-        executable_path = {'executable_path': CHROMEDRIVER_DIR1}
-        browser = Browser('chrome', **executable_path, headless=False, incognito=True, options=options)
-        browser.visit(myurl)
+    browser.visit(myurl)
     seed(1)
     time.sleep(random()+1)
     
