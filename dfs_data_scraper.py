@@ -1,14 +1,16 @@
 # scraper 
 from bs4 import BeautifulSoup
+import csv
 from io import StringIO
+import glob
+import numpy as np
 import pandas as pd
-from splinter import browser
-import lxml.html as lh
-from lxml.html.clean import Cleaner
 from pathlib import Path
 from random import seed, random
 import requests, time, os, sys
+from shutil import move
 
+from settings import DL_DIR, DK_NAME, DK_PW
 
 from setup_folders import setup_folders
 
@@ -85,15 +87,110 @@ def get_browser(tries=0):
     options.add_experimental_option('useAutomationExtension', False)
     executable_path = {}
     if tries == 0:
-        executable_path = {'executable_path': CHROMEDRIVER_DIR1}
+        executable_path = {'executable_path': CHROMEDRIVER_DIR3}
     elif tries == 1:
         executable_path = {'executable_path': CHROMEDRIVER_DIR2}
+    elif tries == 2:
+        executable_path = {'executable_path': CHROMEDRIVER_DIR1}
     else:
-        executable_path = {'executable_path': CHROMEDRIVER_DIR3}
-    
-    browser = Browser('chrome', **executable_path, headless=False, incognito=True, options=options)
+        print("Couldn't build browser.")
+        return
+    try:
+        browser = Browser('chrome', **executable_path, headless=False, incognito=True, options=options)
+        return browser
+    except:
+        tries += 1
+        get_browser(tries)
+        
 
-    return browser
+def get_dk_data():
+    # https://www.draftkings.com/lineup/upload#
+
+    # dl button html:
+    # <a href="/bulklineup/getdraftablecsv?draftGroupId=56618" class="dk-btn dk-btn-success dk-btn-icon pull-right" data-download-template="1">
+    # <span class="icon-download"></span> DOWNLOAD</a>
+
+    # define the components to build a URL
+    method = 'GET'
+
+    # build the URL and store it in a new variable
+    p = requests.Request(method, 'https://www.draftkings.com/lineup/upload#').prepare()
+    myurl = p.url
+
+    browser= get_browser()
+    
+    # go to the URL
+    browser.visit(myurl)
+    seed(1)
+    time.sleep(random()+1)
+
+    # log in
+    login_btn = browser.find_by_text('Log In')
+    login_btn.click()
+    time.sleep(3)
+    browser.find_by_name('username').click()
+    time.sleep(1)
+    browser.find_by_name('username').fill(DK_NAME)
+    time.sleep(1)
+    browser.find_by_name('password').click()
+    time.sleep(1)
+    browser.find_by_name('password').fill(DK_PW)
+    
+    time.sleep(1)
+    login_btn = browser.find_by_text('Log In')[1]
+    login_btn.click()
+    
+
+    time.sleep(25)
+    dl_button = browser.links.find_by_partial_href('bulklineup/getdraftablecsv')
+    time.sleep(1)
+    dl_button.click()
+    time.sleep(5)
+
+    browser.quit()
+
+    download_path = DL_DIR
+    new_path = os.getcwd()
+    old_file_name = download_path+'/DKSalaries.csv'
+    list_of_files = [glob.glob("./csv's/dkdata/*")]
+    seq = len(list_of_files)
+    new_file_name = new_path+f'/csv\'s/dkdata/DKSalaries-{seq}.csv'
+    move(old_file_name, new_file_name)
+
+    fix_dk_salaries(new_file_name)
+
+    return
+
+def diff_sets(game_info, team):
+    arr_game_info = game_info.split('@')
+    arr_team = [team]
+    set_game_info = set(arr_game_info)
+    set_team = set(arr_team)
+    diff = set_game_info.difference(set_team)
+    return ''.join(diff)
+
+def fix_dk_salaries(new_file_name):
+    arr = []
+    with open(new_file_name, newline='', encoding='utf-8') as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=',')
+        for line in csv_reader:
+            # print(len(line))
+            if len(line) > 12:
+                arr.append(line)
+    cols = arr.pop(0)
+    arr = np.array(arr)
+    csv_file.close()
+    
+    df = pd.DataFrame(data=arr, columns=cols)
+    df['Game Info'] = df['Game Info'].apply(lambda val: val.split(' ')[0])
+    df['h/a'] = df.apply(lambda row: 'a' if row['Game Info'].startswith(row['TeamAbbrev']) else 'h', axis=1)
+    df['Oppt'] = df.apply(lambda row: diff_sets(row['Game Info'], row['TeamAbbrev']), axis=1)
+    df = df.drop(labels=['Name + ID', 'Roster Position', 'Game Info'], axis=1)
+    print(df.head(15))
+    file_name_rewrite = new_file_name.split('/')
+    file_name_rewrite[-1] = 'fixed_'+file_name_rewrite[-1]
+    new_file_name = '/'.join(file_name_rewrite)
+    df.to_csv(path_or_buf=new_file_name)
 
 def get_fantasy_data(url):
 
@@ -103,23 +200,11 @@ def get_fantasy_data(url):
     # build the URL and store it in a new variable
     p = requests.Request(method, url).prepare()
     myurl = p.url
-
-    # build correct browser
-    tries = 0
-    browser= ""
-    
-    while True:
-        if tries > 3:
-            break
-        try:
-            browser = get_browser(tries)
-            break
-        except:
-            # if chrome auto updates and opening a browser fails, 
-            # try a different webdriver version
-            tries += 1           
+           
     # go to the URL
+    browser = get_browser()
     browser.visit(myurl)
+    
     seed(1)
     time.sleep(random()+1)
     
@@ -135,14 +220,25 @@ def get_fantasy_data(url):
     df = pd.read_csv(csv, sep=';')
     df = df.drop(columns='GID')
     # print(df.head())
-    location_string = f"./csv's/{df['Year'][0]}/year-{df['Year'][0]}-week-{df['Week'][0]}-DK-player_data.csv"
-    df.to_csv(path_or_buf=location_string)
+    try:
+        location_string = f"./csv's/{df['Year'][0]}/year-{df['Year'][0]}-week-{df['Week'][0]}-DK-player_data.csv"
+        df.to_csv(path_or_buf=location_string)
+    except:
+        print("Can't make file with fantasy data.")
     return 
 
 def scraper():
-    urls = build_urls()
-    for link in urls:
-        get_fantasy_data(link)
+    fix_dk_salaries('./csv\'s/dkdata/DKSalaries-1.csv')
+    # get_dk_data()
+    # urls = build_urls()
+    # for link in urls:
+    #     try:
+    #     # sometimes the url doesn't exist yet...
+    #         get_fantasy_data(link)
+    #     except:
+    #     # so we just skip the rest of the season
+    #         break
+    
 
 if __name__ == '__main__':
     setup_folders()

@@ -1,7 +1,7 @@
 import glob
 import os
 import re
-from shutil import move, copyfile
+from shutil import move
 import sys
 import time
 import zipfile

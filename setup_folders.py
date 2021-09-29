@@ -13,7 +13,8 @@ def setup_folders():
                     "chromedrivers/1", 
                     "chromedrivers/2", 
                     "chromedrivers/3", 
-                    "csv's"
+                    "csv's",
+                    "csv's/dkdata"
                     ]
     for i in years:
         folder_names.append(f"csv's/{i}")
