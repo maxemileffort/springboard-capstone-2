@@ -109,6 +109,8 @@ def get_fantasy_data(url):
     browser= ""
     
     while True:
+        if tries > 3:
+            break
         try:
             browser = get_browser(tries)
             break
