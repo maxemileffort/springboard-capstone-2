@@ -1,17 +1,16 @@
+import glob
+import os
 import random
+from difflib import SequenceMatcher
+import time
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 pd.options.mode.chained_assignment = None # to remove some warnings
-import seaborn as sns
 
 from sklearn.ensemble import AdaBoostRegressor, GradientBoostingRegressor
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
-import warnings
-warnings.simplefilter(action="ignore", category=FutureWarning)
-warnings.filterwarnings(action="ignore", module="scipy", message="^internal gelsd")
 
 from lineup_builder import Lineup
 
@@ -89,24 +88,8 @@ def get_RMSE(y_true, y_pred):
     RMSE = np.sqrt(MSE)
     return RMSE
 
-def summarize_df(df, o_u_thresh=15):
-    df = eval_model(df)
-    RMSE = get_RMSE(df['actual_score'], df['pred'])
-    print(f"Total entries analyzed: {len(df)}")
-    s, i, j = remove_outliers_btwn_ij(df)
-    print(f"Total entries after outliers removed: {len(s)}. Left boundary: {i}x Right Boundary: {j}x")
-    correct_preds_over_thresh = s[(s.pred >= o_u_thresh)&(s.actual_score>=o_u_thresh)]
-    correct_preds_under_thresh = s[(s.pred <= o_u_thresh)&(s.actual_score<=o_u_thresh)]
-    incorrect_preds_under_thresh = s[(s.pred <= o_u_thresh)&(s.actual_score>=o_u_thresh)]
-    incorrect_preds_over_thresh = s[(s.pred >= o_u_thresh)&(s.actual_score<=o_u_thresh)]
-    print(f"Correct predictions of over {o_u_thresh} pts: {len(correct_preds_over_thresh)}. Percent: {round(len(correct_preds_over_thresh)/len(s)*100,2)}") # True Positive
-    print(f"Correct predictions of under {o_u_thresh} pts: {len(correct_preds_under_thresh)}. Percent: {round(len(correct_preds_under_thresh)/len(s)*100,2)}") # True Negative
-    print(f"Incorrect predictions of over {o_u_thresh} pts: {len(incorrect_preds_over_thresh)}. Percent: {round(len(incorrect_preds_over_thresh)/len(s)*100,2)}") # False Positive
-    print(f"Incorrect predictions of under {o_u_thresh} pts: {len(incorrect_preds_under_thresh)}. Percent: {round(len(incorrect_preds_under_thresh)/len(s)*100,2)}") # False Negative
-    print(f"RMSE: {RMSE}")
-    print("Ignore following metrics for filtered DF:")
-    print(f"Total percent correct over {o_u_thresh}: {round(len(correct_preds_over_thresh)/len(s)*100,2)-round(len(incorrect_preds_over_thresh)/len(s)*100,2)}")
-    print(f"Total percent correct under {o_u_thresh}: {round(len(correct_preds_under_thresh)/len(s)*100,2)-round(len(incorrect_preds_under_thresh)/len(s)*100,2)}")
+def similar(a, b):
+    return SequenceMatcher(None, a, b).ratio()
 
 def invert_one_hot_encode(df, cols=None, sub_strs=None):
     df['Name'] = (df.iloc[:, 3:len(df)] == 1).idxmax(1).str.replace('Name_', "")
@@ -120,47 +103,99 @@ def get_current_year():
     datem = datetime(today.year, today.month, 1)
     return datem.year
 
-season = get_current_year()
-week = input("What week is it? ")
-next_week = week + 1
+def train_models():
+    season = get_current_year()
 
-dataset = get_season_data(season)
-df = handle_nulls(dataset)
-def_df = df.loc[df.Pos == 'Def']
-def_df['fantasy_points_allowed_lw'] = 0
-df['Oppt_pts_allowed_lw'] = 0
-def_teams = [x for x in def_df['Team'].unique()]
+    dataset = get_season_data(season)
+    df = handle_nulls(dataset)
+    def_df = df.loc[df.Pos == 'Def']
+    def_df['fantasy_points_allowed_lw'] = 0
+    df['Oppt_pts_allowed_lw'] = 0
+    def_teams = [x for x in def_df['Team'].unique()]
 
-def_df['pred'] = 1
-def_df = def_df.rename(columns={'DK points': 'actual_score'})
-def_df
+    def_df['pred'] = 1
+    def_df = def_df.rename(columns={'DK points': 'actual_score'})
+    def_df
 
-for week in range(1,17):
-    for team in def_teams:
-        try:
-            offense_df1 = df.loc[(df['Oppt']==team)&(df['Week']==week)]
-            offense_df2 = df.loc[(df['Oppt']==team)&(df['Week']==week+1)]
-            sum_ = offense_df1['DK points'].sum()
-            def_df.loc[(df['Team']==team)&(df['Week']==week+1), 'fantasy_points_allowed_lw'] = sum_
-            df.loc[(df['Oppt']==team)&(df['Week']==week+1), 'Oppt_pts_allowed_lw'] = sum_
-        except:
-            print('couldnt append data')
-            pass
-df = df[df.Week != 1] 
-X = df.drop(labels='DK points', axis=1)
-y = df['DK points']
-X2 = pd.get_dummies(X)
+    for week in range(1,17):
+        for team in def_teams:
+            try:
+                offense_df1 = df.loc[(df['Oppt']==team)&(df['Week']==week)]
+                offense_df2 = df.loc[(df['Oppt']==team)&(df['Week']==week+1)]
+                sum_ = offense_df1['DK points'].sum()
+                def_df.loc[(df['Team']==team)&(df['Week']==week+1), 'fantasy_points_allowed_lw'] = sum_
+                df.loc[(df['Oppt']==team)&(df['Week']==week+1), 'Oppt_pts_allowed_lw'] = sum_
+            except:
+                print('couldnt append data')
+                pass
+    df = df[df.Week != 1] # can't predict values for this week so just drop it
+    X = df.drop(labels='DK points', axis=1)
+    y = df['DK points']
+    X2 = pd.get_dummies(X)
 
-X_train, X_test, y_train, y_test = train_test_split(X2, y, test_size = 0.2, random_state = 42)
+    X_train, X_test, y_train, y_test = train_test_split(X2, y, test_size = 0.2, random_state = 42)
 
-ab_reg = AdaBoostRegressor(**{'learning_rate': 0.02, 
-                              'loss': 'exponential', 
-                              'n_estimators': 100}) 
-gb_reg = GradientBoostingRegressor(**{'learning_rate': 0.05, 
-                                      'max_depth': 3, 
-                                      'max_features': 'auto', 
-                                      'min_samples_leaf': 2})
-ab_reg.fit(X_train, y_train)
-gb_reg.fit(X_train, y_train)
+    ab_reg = AdaBoostRegressor(**{'learning_rate': 0.02, 
+                                  'loss': 'exponential', 
+                                  'n_estimators': 100}) 
+    gb_reg = GradientBoostingRegressor(**{'learning_rate': 0.05, 
+                                          'max_depth': 3, 
+                                          'max_features': 'auto', 
+                                          'min_samples_leaf': 2})
+    ab_reg.fit(X_train, y_train)
+    gb_reg.fit(X_train, y_train)
 
+    return ab_reg, gb_reg
 
+def fix_names(name):
+    name = name.split(' ', 1)
+    name.reverse()
+    name = ", ".join(name)
+    return name
+
+def get_dk_data():
+    list_of_files = glob.glob("./csv's/dkdata/*.csv") 
+    sorted_files = sorted(list_of_files, key=os.path.getctime)
+    most_recent_dkdata = sorted_files[-1] 
+
+    dk_df = pd.read_csv(most_recent_dkdata)
+    drop_labels = []
+    for col in dk_df:
+        if 'Unnamed' in col:
+            drop_labels.append(col)
+    dk_df = dk_df.drop(drop_labels, axis=1)
+    # print(dk_df)
+    return dk_df
+
+def fix_dk_data(dk_df):
+    dk_df = dk_df.rename(columns={'TeamAbbrev': 'Team', 'Position':'Pos'})
+    dk_df['Team'] = dk_df['Team'].apply(str.lower)
+    dk_df['Oppt'] = dk_df['Oppt'].apply(str.lower)
+    dk_df['Name'] = dk_df['Name'].apply(fix_names)
+    return dk_df
+
+year = get_current_year()
+week = input("What week is it: ")
+print(week)
+
+dk_df = get_dk_data()
+dk_data = fix_dk_data(dk_df)
+dk_data_un = dk_data["Name"].unique()
+# print(dk_data_un)
+print(len(dk_data_un))
+
+prev_data = get_ytd_season_data(year, int(week))
+prev_data_un = prev_data["Name"].unique()
+# print(prev_data_un)
+print(len(prev_data_un))
+
+count = 0
+for i in range(len(prev_data_un)):
+    for j in range(len(dk_data_un)):
+        sim = similar(prev_data_un[i], dk_data_un[j])
+        if sim > 0.87:
+            print(sim)
+            print(prev_data_un[i], "|", dk_data_un[j])
+            count += 1
+            time.sleep(0.2)
+print(count)

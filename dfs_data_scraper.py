@@ -140,12 +140,16 @@ def get_dk_data():
     login_btn = browser.find_by_text('Log In')[1]
     login_btn.click()
     
-
-    time.sleep(25)
-    dl_button = browser.links.find_by_partial_href('bulklineup/getdraftablecsv')
-    time.sleep(1)
-    dl_button.click()
-    time.sleep(5)
+    while True:
+        try:
+            time.sleep(25)
+            dl_button = browser.links.find_by_partial_href('bulklineup/getdraftablecsv')
+            time.sleep(1)
+            dl_button.click()
+            time.sleep(5)
+            break
+        except:
+            pass
 
     browser.quit()
 
@@ -224,20 +228,20 @@ def get_fantasy_data(url):
         location_string = f"./csv's/{df['Year'][0]}/year-{df['Year'][0]}-week-{df['Week'][0]}-DK-player_data.csv"
         df.to_csv(path_or_buf=location_string)
     except:
-        print("Can't make file with fantasy data.")
+        raise Exception("Can't make file with fantasy data.")
     return 
 
 def scraper():
+    get_dk_data()
     fix_dk_salaries('./csv\'s/dkdata/DKSalaries-1.csv')
-    # get_dk_data()
-    # urls = build_urls()
-    # for link in urls:
-    #     try:
-    #     # sometimes the url doesn't exist yet...
-    #         get_fantasy_data(link)
-    #     except:
-    #     # so we just skip the rest of the season
-    #         break
+    urls = build_urls()
+    for link in urls:
+        try:
+        # sometimes the url doesn't exist yet...
+            get_fantasy_data(link)
+        except:
+        # so we just skip the rest of the season
+            break
     
 
 if __name__ == '__main__':
