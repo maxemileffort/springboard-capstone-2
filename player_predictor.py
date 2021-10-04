@@ -2,6 +2,7 @@ import glob
 import os
 import random
 from difflib import SequenceMatcher
+import sys
 import time
 
 import numpy as np
@@ -13,6 +14,15 @@ from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 
 from lineup_builder import Lineup
+
+# Mapper for team names, only has the ones that are different
+team_map = {
+    'no' : 'nor',
+    'kc' : 'kan',
+    'gb' : 'gnb',
+    'sf' : 'sfo',
+    'tb' : 'tam'
+}
 
 # Helper Functions
 def get_weekly_data(week, year):
@@ -40,6 +50,7 @@ def get_season_data(year, drop_year=True):
             df = df.append(get_weekly_data(week, year), ignore_index=True)
         except:
             print("No data for week: "+str(week))
+            break
     if drop_year:
         df = df.drop(['Unnamed: 0', 'Year'], axis=1)
     else:
@@ -89,6 +100,7 @@ def get_RMSE(y_true, y_pred):
     return RMSE
 
 def similar(a, b):
+    """ used to see level of similarity between 2 strings. """
     return SequenceMatcher(None, a, b).ratio()
 
 def invert_one_hot_encode(df, cols=None, sub_strs=None):
@@ -102,6 +114,24 @@ def get_current_year():
     today = datetime.today()
     datem = datetime(today.year, today.month, 1)
     return datem.year
+
+def get_extra_cols(prev_df, dk_df, week):
+    def_df = dk_df.loc[dk_df.Pos == 'DST']
+    def_df['fantasy_points_allowed_lw'] = 0
+    dk_df['Oppt_pts_allowed_lw'] = 0
+    dk_df['Week'] = week
+    def_teams = [x for x in def_df['Team'].unique()]
+
+    for team in def_teams:
+        try:
+            offense_df1 = prev_df.loc[(prev_df['Oppt']==team)&(prev_df['Week']==week-1)]
+            sum_ = offense_df1['DK points'].sum()
+            def_df.loc[(prev_df['Team']==team)&(prev_df['Week']==week-1), 'fantasy_points_allowed_lw'] = sum_
+            dk_df.loc[(dk_df['Oppt']==team)&(dk_df['Week']==week), 'Oppt_pts_allowed_lw'] = sum_
+        except:
+            print('couldnt append data: ', sys.exc_info())
+            pass
+    return dk_df
 
 def train_models():
     season = get_current_year()
@@ -121,7 +151,6 @@ def train_models():
         for team in def_teams:
             try:
                 offense_df1 = df.loc[(df['Oppt']==team)&(df['Week']==week)]
-                offense_df2 = df.loc[(df['Oppt']==team)&(df['Week']==week+1)]
                 sum_ = offense_df1['DK points'].sum()
                 def_df.loc[(df['Team']==team)&(df['Week']==week+1), 'fantasy_points_allowed_lw'] = sum_
                 df.loc[(df['Oppt']==team)&(df['Week']==week+1), 'Oppt_pts_allowed_lw'] = sum_
@@ -151,6 +180,7 @@ def fix_names(name):
     name = name.split(' ', 1)
     name.reverse()
     name = ", ".join(name)
+    name = name.lstrip(", ")
     return name
 
 def get_dk_data():
@@ -164,38 +194,67 @@ def get_dk_data():
         if 'Unnamed' in col:
             drop_labels.append(col)
     dk_df = dk_df.drop(drop_labels, axis=1)
-    # print(dk_df)
-    return dk_df
-
-def fix_dk_data(dk_df):
     dk_df = dk_df.rename(columns={'TeamAbbrev': 'Team', 'Position':'Pos'})
     dk_df['Team'] = dk_df['Team'].apply(str.lower)
     dk_df['Oppt'] = dk_df['Oppt'].apply(str.lower)
     dk_df['Name'] = dk_df['Name'].apply(fix_names)
     return dk_df
 
+def predict_players(model1, model2, prev_df, dk_df, week):
+    df = get_extra_cols(prev_df, dk_df, week)
+    prediction_df = df
+    return prediction_df
+
 year = get_current_year()
-week = input("What week is it: ")
+week = int(input("What week is it: "))
 print(week)
 
 dk_df = get_dk_data()
-dk_data = fix_dk_data(dk_df)
-dk_data_un = dk_data["Name"].unique()
-# print(dk_data_un)
-print(len(dk_data_un))
+dk_df_un = dk_df["Name"].unique()
 
 prev_data = get_ytd_season_data(year, int(week))
 prev_data_un = prev_data["Name"].unique()
-# print(prev_data_un)
-print(len(prev_data_un))
 
-count = 0
-for i in range(len(prev_data_un)):
-    for j in range(len(dk_data_un)):
-        sim = similar(prev_data_un[i], dk_data_un[j])
+name_map = dict.fromkeys(dk_df_un)
+for name in name_map.keys():
+    possibilities = []
+    for i in range(len(prev_data_un)):    
+        sim = similar(name, prev_data_un[i])
         if sim > 0.87:
-            print(sim)
-            print(prev_data_un[i], "|", dk_data_un[j])
-            count += 1
-            time.sleep(0.2)
-print(count)
+            possibilities.append(prev_data_un[i])
+    if len(possibilities) > 1:
+        print(possibilities)
+        idx = int(input(f"Which one looks right for {name}? "))
+        choice = possibilities[idx-1]
+    else:
+        try:
+            name_map[name] = possibilities[0]
+        except:
+            pass
+    
+    if (name_map[name]) == None:
+        name_map[name] = name
+
+for row in dk_df['Name']:
+    if row in name_map.keys():
+        dk_df.loc[dk_df['Name'] == row, 'Name'] = name_map[row]
+
+for row in dk_df['Team']:
+    if row in team_map.keys():
+        dk_df.loc[dk_df['Team'] == row, 'Team'] = team_map[row]
+
+for row in dk_df['Oppt']:
+    if row in team_map.keys():
+        dk_df.loc[dk_df['Oppt'] == row, 'Oppt'] = team_map[row]
+
+print(prev_data)
+print("=====")
+print(dk_df)
+
+dk_df=dk_df.drop(columns=['ID', 'AvgPointsPerGame'])
+
+ab_reg, gb_reg = train_models()
+
+prediction_df = predict_players(ab_reg, gb_reg, prev_data, dk_df, week)
+
+print(prediction_df)

@@ -11,6 +11,7 @@ import requests, time, os, sys
 from shutil import move
 
 from settings import DL_DIR, DK_NAME, DK_PW
+from webdriver_updater import get_updates
 
 from setup_folders import setup_folders
 
@@ -247,4 +248,5 @@ def scraper():
 if __name__ == '__main__':
     setup_folders()
     scraper()
+    get_updates()
     # get_player_data(player_name="Ryan, Matt", week=5, year=2018)
