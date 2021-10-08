@@ -12,8 +12,41 @@ pd.options.mode.chained_assignment = None # to remove some warnings
 from sklearn.ensemble import AdaBoostRegressor, GradientBoostingRegressor
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OrdinalEncoder, StandardScaler
+
 
 from lineup_builder import Lineup
+
+# features for encoding
+features = ['Salary', 'Name', 'Team', 'Oppt', 'Pos', 'h/a']
+# ordinal encoders and scalers for models
+name_enc = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=99999)
+team_enc = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=99999)
+h_a_enc = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=99999)
+oppt_enc = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=99999)
+pos_enc = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=99999)
+encoders = {
+    'Name': name_enc,
+    'Team':team_enc,
+    'h/a':h_a_enc,
+    'Oppt':oppt_enc,
+    'Pos':pos_enc
+}
+
+name_sc = StandardScaler()
+team_sc = StandardScaler()
+h_a_sc = StandardScaler()
+oppt_sc = StandardScaler()
+pos_sc = StandardScaler()
+salary_sc = StandardScaler()
+scalers = {
+    'Name': name_sc,
+    'Team':team_sc,
+    'h/a':h_a_sc,
+    'Oppt':oppt_sc,
+    'Pos':pos_sc,
+    'Salary': salary_sc
+}
 
 # Mapper for team names, only has the ones that are different
 team_map = {
@@ -21,8 +54,12 @@ team_map = {
     'kc' : 'kan',
     'gb' : 'gnb',
     'sf' : 'sfo',
-    'tb' : 'tam'
+    'tb' : 'tam',
+    'jax': 'jac',
+    'lv' : 'lvr',
+    'ne' : 'nwe'
 }
+
 
 # Helper Functions
 def get_weekly_data(week, year):
@@ -40,6 +77,7 @@ def get_ytd_season_data(year, current_week):
         except:
             print("No data for week: "+str(week))
     df = df.drop(['Unnamed: 0', 'Year'], axis=1)
+    df = df.rename(columns={'DK salary': 'Salary'})
     return df
 
 def get_season_data(year, drop_year=True):
@@ -55,26 +93,52 @@ def get_season_data(year, drop_year=True):
         df = df.drop(['Unnamed: 0', 'Year'], axis=1)
     else:
         df = df.drop(['Unnamed: 0'], axis=1)
+    df = df.rename(columns={'DK salary': 'Salary'})
     return df
 
-def scale_features(sc_salary, sc_points, sc_pts_ald, X_train, X_test, first_time=False):
-    """ scales data for training """
-    if first_time:
-        X_train['DK salary'] = sc_salary.fit_transform(X_train['DK salary'].values.reshape(-1,1))
-#         X_train['Oppt_pts_allowed_lw'] = sc_pts_ald.fit_transform(X_train['Oppt_pts_allowed_lw'].values.reshape(-1,1))
-    X_test['DK salary'] = sc_salary.transform(X_test['DK salary'].values.reshape(-1,1))
-#     X_test['Oppt_pts_allowed_lw'] = sc_pts_ald.transform(X_test['Oppt_pts_allowed_lw'].values.reshape(-1,1))
-    return X_train, X_test
+def encode_features(encs, df, method=None):
+    """ encodes categorical data. default method is fit_transform. 
+    other options are fit, transform, and decode (inverse_transform) """
+    for feature in features:
+        if feature == 'Salary':
+            continue
+        single_enc = encs[feature]
+        arr = np.array(df[feature])
+        arr = arr.reshape((-1,1))
+        res= ''
+        if method == 'fit':
+            res = single_enc.fit(arr)
+        elif method == 'transform':
+            res = single_enc.transform(arr)
+        elif method == 'decode':
+            res = single_enc.inverse_transform(arr)
+        else: 
+            res = single_enc.fit_transform(arr)
 
-def unscale_features(sc_salary, sc_points, sc_pts_ald, X_train, X_test):
-    """ used to change features back so that human readable information can be used to assess
-    lineups and player information and performance"""
-    X_train['DK salary'] = sc_salary.inverse_transform(X_train['DK salary'].values.reshape(-1,1))
-#     X_train['Oppt_pts_allowed_lw'] = sc_pts_ald.inverse_transform(X_train['Oppt_pts_allowed_lw'].values.reshape(-1,1))
-    X_test['DK salary'] = sc_salary.inverse_transform(X_test['DK salary'].values.reshape(-1,1))
-#     X_test['avg_points'] = sc_points.inverse_transform(X_test['avg_points'].values.reshape(-1,1))
-#     X_test['Oppt_pts_allowed_lw'] = sc_pts_ald.inverse_transform(X_test['Oppt_pts_allowed_lw'].values.reshape(-1,1))
-    return X_train, X_test
+        encs[feature] = single_enc
+        df[feature] = res
+    return df
+
+def scale_features(sc, df, method=None):
+    """ scales continuous data. default method is fit_transform. 
+    other options are fit, transform, and decode (inverse_transform) """
+    for feature in features:
+        single_sc = sc[feature]
+        arr = np.array(df[feature])
+        arr = arr.reshape((-1,1))
+        res = ''
+        if method == 'fit':
+            res = single_sc.fit(arr)
+        elif method == 'transform':
+            res = single_sc.transform(arr)
+        elif method == 'decode':
+            res = single_sc.inverse_transform(arr)
+        else: 
+            res = single_sc.fit_transform(arr)
+
+        sc[feature] = single_sc
+        df[feature] = res
+    return df
 
 def handle_nulls(df):
     # players that have nulls for any of the columns are 
@@ -103,12 +167,6 @@ def similar(a, b):
     """ used to see level of similarity between 2 strings. """
     return SequenceMatcher(None, a, b).ratio()
 
-def invert_one_hot_encode(df, cols=None, sub_strs=None):
-    df['Name'] = (df.iloc[:, 3:len(df)] == 1).idxmax(1).str.replace('Name_', "")
-    subset = ['Week', 'DK salary', 'Oppt_pts_allowed_lw', 'Name']
-    new_df = df[subset]
-    return new_df
-
 def get_current_year():
     from datetime import datetime
     today = datetime.today()
@@ -116,7 +174,7 @@ def get_current_year():
     return datem.year
 
 def get_extra_cols(prev_df, dk_df, week):
-    def_df = dk_df.loc[dk_df.Pos == 'DST']
+    def_df = dk_df.loc[(dk_df.Pos == 'DST')|(dk_df.Pos == 'Def')]
     def_df['fantasy_points_allowed_lw'] = 0
     dk_df['Oppt_pts_allowed_lw'] = 0
     dk_df['Week'] = week
@@ -124,8 +182,12 @@ def get_extra_cols(prev_df, dk_df, week):
 
     for team in def_teams:
         try:
-            offense_df1 = prev_df.loc[(prev_df['Oppt']==team)&(prev_df['Week']==week-1)]
-            sum_ = offense_df1['DK points'].sum()
+            offense_df = prev_df.loc[(prev_df['Oppt']==team)&(prev_df['Week']==week-1)]
+            # sometimes a bye week messes with the above,
+            # so go back another week
+            if len(offense_df) <= 1:
+                offense_df = prev_df.loc[(prev_df['Oppt']==team)&(prev_df['Week']==week-2)]
+            sum_ = offense_df['DK points'].sum()
             def_df.loc[(prev_df['Team']==team)&(prev_df['Week']==week-1), 'fantasy_points_allowed_lw'] = sum_
             dk_df.loc[(dk_df['Oppt']==team)&(dk_df['Week']==week), 'Oppt_pts_allowed_lw'] = sum_
         except:
@@ -133,7 +195,7 @@ def get_extra_cols(prev_df, dk_df, week):
             pass
     return dk_df
 
-def train_models():
+def train_models(week):
     season = get_current_year()
 
     dataset = get_season_data(season)
@@ -147,22 +209,25 @@ def train_models():
     def_df = def_df.rename(columns={'DK points': 'actual_score'})
     def_df
 
-    for week in range(1,17):
+    for _week in range(1,week):
         for team in def_teams:
             try:
-                offense_df1 = df.loc[(df['Oppt']==team)&(df['Week']==week)]
+                offense_df1 = df.loc[(df['Oppt']==team)&(df['Week']==_week)]
+                if len(offense_df) <= 1 and week > 1:
+                    offense_df = df.loc[(df['Oppt']==team)&(df['Week']==week-1)]
+                print("len of offense_df1: ", len(offense_df1), "team: ", team)
                 sum_ = offense_df1['DK points'].sum()
-                def_df.loc[(df['Team']==team)&(df['Week']==week+1), 'fantasy_points_allowed_lw'] = sum_
-                df.loc[(df['Oppt']==team)&(df['Week']==week+1), 'Oppt_pts_allowed_lw'] = sum_
+                def_df.loc[(df['Team']==team)&(df['Week']==_week+1), 'fantasy_points_allowed_lw'] = sum_
+                df.loc[(df['Oppt']==team)&(df['Week']==_week+1), 'Oppt_pts_allowed_lw'] = sum_
             except:
-                print('couldnt append data')
+                print('couldnt append data. train models.')
                 pass
-    df = df[df.Week != 1] # can't predict values for this week so just drop it
-    X = df.drop(labels='DK points', axis=1)
+    df = df[df.Week != 1] # no 'last week', so can't calculate values
+    X = df.drop(labels=['DK points', 'Week'], axis=1)
     y = df['DK points']
-    X2 = pd.get_dummies(X)
-
-    X_train, X_test, y_train, y_test = train_test_split(X2, y, test_size = 0.2, random_state = 42)
+    X2 = X.copy()
+    X2 = encode_features(encoders, X2)
+    X2 = scale_features(scalers, X2)
 
     ab_reg = AdaBoostRegressor(**{'learning_rate': 0.02, 
                                   'loss': 'exponential', 
@@ -171,8 +236,8 @@ def train_models():
                                           'max_depth': 3, 
                                           'max_features': 'auto', 
                                           'min_samples_leaf': 2})
-    ab_reg.fit(X_train, y_train)
-    gb_reg.fit(X_train, y_train)
+    ab_reg.fit(X2, y)
+    gb_reg.fit(X2, y)
 
     return ab_reg, gb_reg
 
@@ -198,12 +263,51 @@ def get_dk_data():
     dk_df['Team'] = dk_df['Team'].apply(str.lower)
     dk_df['Oppt'] = dk_df['Oppt'].apply(str.lower)
     dk_df['Name'] = dk_df['Name'].apply(fix_names)
+    dk_df['Pos'] = dk_df['Pos'].apply(lambda x: 'Def' if x == 'DST' else x)
     return dk_df
+
+def build_defense_df(week, dk_df=None):
+    year = get_current_year()
+    df = get_ytd_season_data(year, week)
+    def_df = df.loc[df.Pos == 'Def']
+    team_names = [x for x in def_df.Oppt.unique()]
+    new_cols = ['avg_pts_to_qb', 'avg_pts_to_rb', 'avg_pts_to_wr', 'avg_pts_to_te']
+    for col in new_cols:
+        def_df[col] = 0
+    weeks = df.Week.unique()
+    pos = ['QB', 'RB', 'WR', 'TE']
+    for team in team_names:
+        df_temp = pd.DataFrame(columns=df.columns)
+        for i in range(4):
+            for week_ in weeks:
+                df_week = df.loc[(df.Week == week_)&(df.Pos == pos[i])]
+                df_week_team = df_week.loc[df_week.Oppt == team]
+                df_temp = df_temp.append(df_week_team)
+            df_temp_pos = df_temp.loc[df_temp.Pos == pos[i]]
+            # this average is YTD average points a def is giving
+            # to any one position
+            for week_ in weeks:
+                avg_ = df_temp_pos.loc[df_temp_pos.Week <= week_, 'DK points'].sum() / week_
+                def_df.loc[(def_df.Team == team)&(def_df.Week == week_), new_cols[i]] = avg_
+    return def_df
 
 def predict_players(model1, model2, prev_df, dk_df, week):
     df = get_extra_cols(prev_df, dk_df, week)
-    prediction_df = df
-    return prediction_df
+    df = encode_features(encoders, df, method="transform")
+    df = scale_features(scalers, df, method="transform")
+    df = df.drop(columns='Week')
+    y_pred = model1.predict(df)
+    df['pred'] = y_pred
+    df = scale_features(scalers, df, method="decode")
+    df_filtered = df.loc[df['pred']>=10]
+
+    df_filtered = df_filtered.drop(columns='pred')
+    df_filtered = scale_features(scalers, df_filtered, method="transform")
+
+    y_pred2 = model2.predict(df_filtered)
+    df_filtered['pred'] = y_pred2
+    df_filtered = scale_features(scalers, df_filtered, method="decode")
+    return df_filtered
 
 year = get_current_year()
 week = int(input("What week is it: "))
@@ -211,6 +315,9 @@ print(week)
 
 dk_df = get_dk_data()
 dk_df_un = dk_df["Name"].unique()
+
+def_df = build_defense_df(week)
+def_df.to_csv(path_or_buf=f"./csv's/def_df's/most_recent_def_df.csv")
 
 prev_data = get_ytd_season_data(year, int(week))
 prev_data_un = prev_data["Name"].unique()
@@ -247,14 +354,88 @@ for row in dk_df['Oppt']:
     if row in team_map.keys():
         dk_df.loc[dk_df['Oppt'] == row, 'Oppt'] = team_map[row]
 
-print(prev_data)
-print("=====")
-print(dk_df)
-
 dk_df=dk_df.drop(columns=['ID', 'AvgPointsPerGame'])
 
-ab_reg, gb_reg = train_models()
+ab_reg, gb_reg = train_models(week)
 
-prediction_df = predict_players(ab_reg, gb_reg, prev_data, dk_df, week)
+prediction_df = predict_players(gb_reg, ab_reg, prev_data, dk_df, week)
 
-print(prediction_df)
+prediction_df = encode_features(encoders, prediction_df, method='decode')
+    
+pd.set_option("display.max_rows", None, "display.max_columns", 20)
+print(prediction_df.loc[prediction_df['Name'].isnull() == False ])
+
+prediction_df.to_csv(path_or_buf=f"./csv's/dkdata/predictions/dk_preds-week-{week}.csv")
+
+def get_recommendations(week):
+    file_path = f"./csv's/dkdata/predictions/dk_preds-week-{week}.csv"
+    df = pd.read_csv(file_path)
+    pd.set_option("display.max_rows", None, "display.max_columns", 20)
+    df = df.loc[df.Name.isnull() == False]
+
+    file_path = "./csv's/def_df's/most_recent_def_df.csv"
+    def_df = pd.read_csv(file_path)
+
+    # figure out which teams are giving up the most to qb's
+    qb_df = (def_df.loc[(def_df.avg_pts_to_qb > 20)]
+                .drop(columns=['avg_pts_to_rb', 'avg_pts_to_wr', 'avg_pts_to_te'])
+                .sort_values(by='avg_pts_to_qb', ascending=False).head(15))
+    # sort by name to determine frequency of teams,
+    # higher frequency = weaker to that position
+    qb_df.sort_values(by='Name')
+    qb_counts = qb_df.Team.value_counts()
+
+    # figure out which teams are giving up the most to rb's
+    rb_df = (def_df.loc[(def_df.avg_pts_to_rb > 20)]
+                .drop(columns=['avg_pts_to_qb', 'avg_pts_to_wr', 'avg_pts_to_te'])
+                .sort_values(by='avg_pts_to_rb', ascending=False).head(15))
+    # sort by name to determine frequency of teams,
+    # higher frequency = weaker to that position
+    rb_df.sort_values(by='Name')
+    rb_counts = rb_df.Team.value_counts()
+
+    # figure out which teams are giving up the most to wr's
+    wr_df = (def_df.loc[(def_df.avg_pts_to_wr > 20)]
+                .drop(columns=['avg_pts_to_qb', 'avg_pts_to_rb', 'avg_pts_to_te'])
+                .sort_values(by='avg_pts_to_wr', ascending=False).head(15))
+    # sort by name to determine frequency of teams,
+    # higher frequency = weaker to that position
+    wr_df.sort_values(by='Name')
+    wr_counts = wr_df.Team.value_counts()
+
+    # figure out which teams are giving up the most to te's
+    te_df = (def_df.loc[(def_df.avg_pts_to_te > 12)]
+                .drop(columns=['avg_pts_to_qb', 'avg_pts_to_rb', 'avg_pts_to_wr'])
+                .sort_values(by='avg_pts_to_te', ascending=False).head(15))
+    # sort by name to determine frequency of teams,
+    # higher frequency = weaker to that position
+    te_df.sort_values(by='Name')           
+    te_counts = te_df.Team.value_counts() 
+
+    total_counts = [qb_counts, rb_counts, wr_counts, te_counts]
+    pos = ['qb', 'rb', 'wr', 'te']
+    def read_counts(array):
+        counts = {}
+        for i in range(4):
+            counts[pos[i]] = array[i][0:3]
+        return counts
+
+    # this is the total times a def has given 20+
+    # points (12+ in the case of TE's) up to any
+    # defense. The higher the numer, the more frequent
+    # that happens.
+    count_dict = read_counts(total_counts)
+    recs = pd.DataFrame(columns=['Name', 'Pos', 'Salary', 'Team', 'h/a', 'Oppt', 'pred'])
+    for key in count_dict.keys():
+        print("Pick these", key + "'s:")
+        for i in range(3):
+            bad_def = count_dict[key].index[i]
+            good_play = df.loc[(df.Oppt == bad_def)&(df.Pos == key.upper())].drop(columns=['Unnamed: 0', 'Oppt_pts_allowed_lw'])
+            if len(good_play) > 0:
+                print(good_play)
+                recs = recs.append(good_play)
+        print('=====')
+    return recs
+
+recs = get_recommendations(week)
+print(recs)
