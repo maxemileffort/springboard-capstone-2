@@ -161,9 +161,7 @@ def get_dk_data():
     seq = len(list_of_files)
     new_file_name = new_path+f'/csv\'s/dkdata/DKSalaries-{seq}.csv'
     move(old_file_name, new_file_name)
-
     fix_dk_salaries(new_file_name)
-
     return
 
 def diff_sets(game_info, team):
@@ -174,9 +172,9 @@ def diff_sets(game_info, team):
     diff = set_game_info.difference(set_team)
     return ''.join(diff)
 
-def fix_dk_salaries(new_file_name):
+def fix_dk_salaries(file_name):
     arr = []
-    with open(new_file_name, newline='', encoding='utf-8') as csv_file:
+    with open(file_name, newline='', encoding='utf-8') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
         for line in csv_reader:
             # print(len(line))
@@ -192,10 +190,11 @@ def fix_dk_salaries(new_file_name):
     df['Oppt'] = df.apply(lambda row: diff_sets(row['Game Info'], row['TeamAbbrev']), axis=1)
     df = df.drop(labels=['Name + ID', 'Roster Position', 'Game Info'], axis=1)
     print(df.head(15))
-    file_name_rewrite = new_file_name.split('/')
+    file_name_rewrite = file_name.split('/')
     file_name_rewrite[-1] = 'fixed_'+file_name_rewrite[-1]
     new_file_name = '/'.join(file_name_rewrite)
     df.to_csv(path_or_buf=new_file_name)
+    os.remove(file_name)
 
 def get_fantasy_data(url):
 
@@ -233,8 +232,8 @@ def get_fantasy_data(url):
     return 
 
 def scraper():
+    setup_folders()
     get_dk_data()
-    fix_dk_salaries('./csv\'s/dkdata/DKSalaries-1.csv')
     urls = build_urls()
     for link in urls:
         try:
@@ -243,10 +242,8 @@ def scraper():
         except:
         # so we just skip the rest of the season
             break
-    
+    get_updates()
 
 if __name__ == '__main__':
-    setup_folders()
     scraper()
-    get_updates()
     # get_player_data(player_name="Ryan, Matt", week=5, year=2018)
