@@ -146,10 +146,6 @@ def handle_nulls(df):
     df = df.dropna()
     return df
 
-def eval_model(df):
-    df['score_ratio'] = round(df['actual_score'] / df['pred'],4)
-    return df
-
 def similar(a, b):
     """ used to see level of similarity between 2 strings. """
     return SequenceMatcher(None, a, b).ratio()
@@ -161,6 +157,10 @@ def get_current_year():
     return datem.year
 
 def get_extra_cols(prev_df, dk_df, week):
+    """ Adds extra columns to each df for the purpose of teaching the model
+    which defenses are really good and which aren't all that great. Calculates
+    average fantasy points allowed by defenses to players from the previous 
+    weeks """
     def_df = dk_df.loc[(dk_df.Pos == 'DST')|(dk_df.Pos == 'Def')]
     def_df['fantasy_points_allowed_lw'] = 0
     dk_df['Oppt_pts_allowed_lw'] = 0
@@ -182,6 +182,7 @@ def get_extra_cols(prev_df, dk_df, week):
             pass
     return dk_df
 
+# needs refactoring
 def train_models(week, prev_df):
     df = prev_df
     def_df = df.loc[df.Pos == 'Def']
@@ -230,6 +231,7 @@ def train_models(week, prev_df):
     return ab_reg, gb_reg
 
 def fix_names(name):
+    """ reformats names between to be the same in dataframes"""
     name = name.split(' ', 1)
     name.reverse()
     name = ", ".join(name)
@@ -237,6 +239,7 @@ def fix_names(name):
     return name
 
 def get_dk_data():
+    """ grabs the most recent download of data from Draft Kings"""
     list_of_files = glob.glob("./csv's/dkdata/*.csv") 
     sorted_files = sorted(list_of_files, key=os.path.getctime)
     most_recent_dkdata = sorted_files[-1] 
@@ -256,6 +259,8 @@ def get_dk_data():
     return dk_df
 
 def build_defense_df(week, dk_df=None):
+    """ further breaks down defenses by pts fantasy points
+    allowed to each position """
     year = get_current_year()
     df = get_ytd_season_data(year, week)
     def_df = df.loc[df.Pos == 'Def']
@@ -298,7 +303,9 @@ def predict_players(model1, model2, prev_df, dk_df, week):
     df_filtered = scale_features(scalers, df_filtered, method="decode")
     return df_filtered
 
-def get_recommendations(week):
+def get_recommendations(week, high_thresh=15, low_thresh=10):
+    """ takes the results of the prediction and prints 'good'
+    players to the terminal """
     file_path = f"./csv's/dkdata/predictions/dk_preds-week-{week}.csv"
     df = pd.read_csv(file_path)
     pd.set_option("display.max_rows", None, "display.max_columns", 20)
@@ -308,7 +315,7 @@ def get_recommendations(week):
     def_df = pd.read_csv(file_path)
 
     # figure out which teams are giving up the most to qb's
-    qb_df = (def_df.loc[(def_df.avg_pts_to_qb > 18)]
+    qb_df = (def_df.loc[(def_df.avg_pts_to_qb > high_thresh)]
                 .drop(columns=['avg_pts_to_rb', 'avg_pts_to_wr', 'avg_pts_to_te'])
                 .sort_values(by='avg_pts_to_qb', ascending=False).head(15))
     # sort by name to determine frequency of teams,
@@ -317,7 +324,7 @@ def get_recommendations(week):
     qb_counts = qb_df.Team.value_counts()
 
     # figure out which teams are giving up the most to rb's
-    rb_df = (def_df.loc[(def_df.avg_pts_to_rb > 18)]
+    rb_df = (def_df.loc[(def_df.avg_pts_to_rb > high_thresh)]
                 .drop(columns=['avg_pts_to_qb', 'avg_pts_to_wr', 'avg_pts_to_te'])
                 .sort_values(by='avg_pts_to_rb', ascending=False).head(15))
     # sort by name to determine frequency of teams,
@@ -326,7 +333,7 @@ def get_recommendations(week):
     rb_counts = rb_df.Team.value_counts()
 
     # figure out which teams are giving up the most to wr's
-    wr_df = (def_df.loc[(def_df.avg_pts_to_wr > 18)]
+    wr_df = (def_df.loc[(def_df.avg_pts_to_wr > high_thresh)]
                 .drop(columns=['avg_pts_to_qb', 'avg_pts_to_rb', 'avg_pts_to_te'])
                 .sort_values(by='avg_pts_to_wr', ascending=False).head(15))
     # sort by name to determine frequency of teams,
@@ -335,7 +342,7 @@ def get_recommendations(week):
     wr_counts = wr_df.Team.value_counts()
 
     # figure out which teams are giving up the most to te's
-    te_df = (def_df.loc[(def_df.avg_pts_to_te > 12)]
+    te_df = (def_df.loc[(def_df.avg_pts_to_te > low_thresh)]
                 .drop(columns=['avg_pts_to_qb', 'avg_pts_to_rb', 'avg_pts_to_wr'])
                 .sort_values(by='avg_pts_to_te', ascending=False).head(15))
     # sort by name to determine frequency of teams,
@@ -348,7 +355,7 @@ def get_recommendations(week):
     def read_counts(array):
         counts = {}
         for i in range(4):
-            counts[pos[i]] = array[i][0:3]
+            counts[pos[i]] = array[i][:3]
         return counts
 
     # this is the total times a def has given 18+
@@ -369,6 +376,9 @@ def get_recommendations(week):
     return recs
 
 def pick_def():
+    """ algo has trouble picking defenses, so this is based of just analysis. defenses 
+    that most frequently appear by allowing the fewest fantasy points per game 
+    will be the top defenses to pick """
     file_path = "./csv's/def_df's/most_recent_def_df.csv"
     def_df = pd.read_csv(file_path).drop(columns=['Unnamed: 0', 'Name', 'h/a']) 
     def_df = (def_df
@@ -395,10 +405,5 @@ def pick_def():
             tier_2_defs.append(y)
         elif x == match2:
             tier_2_defs.append(y)
-    # print("Tier 1 defenses: ")
-    # for defense in tier_1_defs:
-    #     print(defense)
-    # print("Tier 2 defenses: ")
-    # for defense in tier_2_defs:
-    #     print(defense)
+
     return tier_1_defs, tier_2_defs
