@@ -113,6 +113,9 @@ def encode_features(encs, df, method=None):
 
         encs[feature] = single_enc
         df[feature] = res
+    
+    df = df[df.Name != 99999]
+
     return df
 
 def scale_features(sc, df, method=None):
@@ -301,6 +304,7 @@ def predict_players(model1, model2, prev_df, dk_df, week):
     y_pred2 = model2.predict(df_filtered)
     df_filtered['pred'] = y_pred2
     df_filtered = scale_features(scalers, df_filtered, method="decode")
+    df_filtered = encode_features(encoders, df_filtered, method="decode")
     return df_filtered
 
 def get_recommendations(week, high_thresh=15, low_thresh=10):

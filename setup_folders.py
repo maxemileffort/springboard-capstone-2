@@ -16,7 +16,8 @@ def setup_folders():
                     "csv's",
                     "csv's/dkdata",
                     "csv's/dkdata/predictions",
-                    "csv's/def_df's"
+                    "csv's/def_df's",
+                    'txt'
                     ]
     for i in years:
         folder_names.append(f"csv's/{i}")

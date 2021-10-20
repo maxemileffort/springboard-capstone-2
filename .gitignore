@@ -1,5 +1,5 @@
 /chromedrivers
 /csv's
-
+/txt
 .env 
 *.csv

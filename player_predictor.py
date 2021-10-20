@@ -1,4 +1,8 @@
 import getopt, sys
+import glob
+import os
+import random
+from difflib import SequenceMatcher
 
 import numpy as np
 import pandas as pd
@@ -12,30 +16,31 @@ year = get_current_year()
 week = int(input("What week is it: "))
 print(week)
 
-# User can pass -s or --skip when calling script to 
-# skip initial data scrape
-# Get full command-line arguments
-full_cmd_arguments = sys.argv
+# # User can pass -s or --skip when calling script to 
+# # skip initial data scrape
+# # Get full command-line arguments
+# full_cmd_arguments = sys.argv
 
-# Keep all but the first
-argument_list = full_cmd_arguments[1:]
+# # Keep all but the first
+# argument_list = full_cmd_arguments[1:]
 
-short_options = "s"
-long_options = ["skip"]
+# short_options = "s"
+# long_options = ["skip"]
 
-try:
-    arguments, values = getopt.getopt(argument_list, short_options, long_options)
-except getopt.error as err:
-    # Output error, and return with an error code
-    print (str(err))
+# try:
+#     arguments, values = getopt.getopt(argument_list, short_options, long_options)
+# except getopt.error as err:
+#     # Output error, and return with an error code
+#     print (str(err))
 
-# Evaluate given options
-for current_argument, current_value in arguments:
-    if current_argument in ("-s", "--skip"):
-        break
-    else:
-        # make sure all of the data is up to date
-        scraper()
+# # Evaluate given options
+# for current_argument, current_value in arguments:
+#     print('current_argument:', current_argument)
+#     if current_argument in ("-s", "--skip"):
+#         break
+#     else:
+#         # make sure all of the data is up to date
+#         scraper()
 
 # build and wrangle data
 dk_df = get_dk_data()
@@ -50,14 +55,20 @@ prev_data_un = prev_data["Name"].unique()
 name_map = dict.fromkeys(dk_df_un)
 for name in name_map.keys():
     possibilities = []
+    choice = ''
     for i in range(len(prev_data_un)):    
         sim = similar(name, prev_data_un[i])
         if sim > 0.87:
             possibilities.append(prev_data_un[i])
     if len(possibilities) > 1:
+        if name in possibilities:
+            name_map[name] = name
+            continue
+        # edge cases get handled by human
         print(possibilities)
         idx = int(input(f"Which one looks right for {name}? "))
         choice = possibilities[idx-1]
+        name_map[name] = choice
     else:
         try:
             name_map[name] = possibilities[0]
@@ -81,7 +92,7 @@ ab_reg, gb_reg = train_models(week, prev_data)
 # make predictions
 prediction_df = predict_players(gb_reg, ab_reg, prev_data, dk_df, week)
 
-prediction_df = encode_features(encoders, prediction_df, method='decode')
+# prediction_df = encode_features(encoders, prediction_df, method='decode')
     
 pd.set_option("display.max_rows", None, "display.max_columns", 20)
 
@@ -114,3 +125,16 @@ for i in range(len(t2d)):
             print(msg)
     except:
         pass
+
+txt_str = "This week's Good Plays: \n " \
+    f'{recs} \n' \
+    f'Tier 1 Defenses: \n' \
+    f'{t1d} \n' \
+    f'Tier 2 Defenses: \n' \
+    f'{t2d} \n'
+
+print(txt_str)
+
+text_file = open(f"./txt/{week}-{year}-pred.txt", "w")
+n = text_file.write(txt_str)
+text_file.close()
