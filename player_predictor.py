@@ -16,32 +16,6 @@ year = get_current_year()
 week = int(input("What week is it: "))
 print(week)
 
-# # User can pass -s or --skip when calling script to 
-# # skip initial data scrape
-# # Get full command-line arguments
-# full_cmd_arguments = sys.argv
-
-# # Keep all but the first
-# argument_list = full_cmd_arguments[1:]
-
-# short_options = "s"
-# long_options = ["skip"]
-
-# try:
-#     arguments, values = getopt.getopt(argument_list, short_options, long_options)
-# except getopt.error as err:
-#     # Output error, and return with an error code
-#     print (str(err))
-
-# # Evaluate given options
-# for current_argument, current_value in arguments:
-#     print('current_argument:', current_argument)
-#     if current_argument in ("-s", "--skip"):
-#         break
-#     else:
-#         # make sure all of the data is up to date
-#         scraper()
-
 # build and wrangle data
 dk_df = get_dk_data()
 dk_df_un = dk_df["Name"].unique()
@@ -104,7 +78,7 @@ print("This week's good plays: \n")
 print(recs)
 
 # pick defenses
-t1d, t2d = pick_def()
+t1d, t2d = pick_def(week)
 dk_df2 = get_dk_data().drop(columns=['ID'])
 for i in range(len(t2d)):
     try:
@@ -127,11 +101,11 @@ for i in range(len(t2d)):
         pass
 
 txt_str = "This week's Good Plays: \n " \
-    f'{recs} \n' \
+    f'{recs} \n\n' \
     f'Tier 1 Defenses: \n' \
-    f'{t1d} \n' \
+    f'{", ".join([x.upper() for x in t1d])} \n\n' \
     f'Tier 2 Defenses: \n' \
-    f'{t2d} \n'
+    f'{", ".join([x.upper() for x in t2d])} \n' \
 
 print(txt_str)
 

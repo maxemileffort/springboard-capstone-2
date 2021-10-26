@@ -379,13 +379,19 @@ def get_recommendations(week, high_thresh=15, low_thresh=10):
         # print('=====')
     return recs
 
-def pick_def():
-    """ algo has trouble picking defenses, so this is based of just analysis. defenses 
+def pick_def(week, window=4):
+    """ algo has trouble picking defenses, so this is based off just analysis. defenses 
     that most frequently appear by allowing the fewest fantasy points per game 
-    will be the top defenses to pick """
+    will be the top defenses to pick.
+    
+    It uses a default look back of 4, which means it only checks defensive performance in 
+    the past 4 weeks. This is to control for injuries and how the game changes as the weather
+    changes. """
+    lookback = week - window
     file_path = "./csv's/def_df's/most_recent_def_df.csv"
     def_df = pd.read_csv(file_path).drop(columns=['Unnamed: 0', 'Name', 'h/a']) 
     def_df = (def_df
+                .loc[def_df.Week >= lookback]
                 .sort_values(by='DK points', ascending=False)
                 .head(int(len(def_df) / 10)))
     def_df_counts = def_df['Team'].value_counts()
